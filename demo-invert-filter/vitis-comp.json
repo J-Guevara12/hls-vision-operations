@@ -1,0 +1,13 @@
+{
+  "name": "demo-invert-filter",
+  "type": "HLS",
+  "configuration": {
+    "componentType": "HLS",
+    "configFiles": [
+      "hls_config.cfg"
+    ],
+    "work_dir": "demo-invert-filter"
+  },
+  "useSysrootToolchain": false,
+  "template": "empty_hls_component"
+}

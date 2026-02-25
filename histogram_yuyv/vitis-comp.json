@@ -1,0 +1,13 @@
+{
+  "name": "histogram_yuyv",
+  "type": "HLS",
+  "configuration": {
+    "componentType": "HLS",
+    "configFiles": [
+      "hls_config.cfg"
+    ],
+    "work_dir": "histogram_yuyv"
+  },
+  "useSysrootToolchain": false,
+  "template": "empty_hls_component"
+}

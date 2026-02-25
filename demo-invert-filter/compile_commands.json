@@ -1,0 +1,27 @@
+[
+  {
+    "directory": "/home/juanes/proyecto-grado/demo-invert-filter",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls",
+      "-hls-syn-headers-dir=/opt/xilinx/2025.1/Vitis/common/technology/autopilot",
+      "-fhlstoplevel=image_invert",
+      "-c",
+      "/home/juanes/proyecto-grado/demo-invert-filter/invert.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/demo-invert-filter/invert.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/demo-invert-filter",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-c",
+      "/home/juanes/proyecto-grado/demo-invert-filter/tb_invert.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/demo-invert-filter/tb_invert.cpp"
+  }
+]

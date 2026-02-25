@@ -1,0 +1,13 @@
+{
+  "name": "y_combinator",
+  "type": "HLS",
+  "configuration": {
+    "componentType": "HLS",
+    "configFiles": [
+      "hls_config.cfg"
+    ],
+    "work_dir": "y_combinator"
+  },
+  "useSysrootToolchain": false,
+  "template": "empty_hls_component"
+}

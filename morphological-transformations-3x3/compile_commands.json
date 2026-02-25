@@ -1,0 +1,27 @@
+[
+  {
+    "directory": "/home/juanes/proyecto-grado/morphological-transformations-3x3",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls",
+      "-hls-syn-headers-dir=/opt/xilinx/2025.1/Vitis/common/technology/autopilot",
+      "-fhlstoplevel=transformation_3x3",
+      "-c",
+      "/home/juanes/proyecto-grado/morphological-transformations-3x3/transformations.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/morphological-transformations-3x3/transformations.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/morphological-transformations-3x3",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-c",
+      "/home/juanes/proyecto-grado/morphological-transformations-3x3/test_transformations.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/morphological-transformations-3x3/test_transformations.cpp"
+  }
+]

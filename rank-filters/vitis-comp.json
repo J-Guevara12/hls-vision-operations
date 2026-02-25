@@ -1,0 +1,13 @@
+{
+  "name": "rank-filters",
+  "type": "HLS",
+  "configuration": {
+    "componentType": "HLS",
+    "configFiles": [
+      "hls_config.cfg"
+    ],
+    "work_dir": "rank-filters"
+  },
+  "useSysrootToolchain": false,
+  "template": "empty_hls_component"
+}

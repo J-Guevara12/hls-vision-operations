@@ -1,0 +1,13 @@
+{
+  "name": "color_convert",
+  "type": "HLS",
+  "configuration": {
+    "componentType": "HLS",
+    "configFiles": [
+      "hls_config.cfg"
+    ],
+    "work_dir": "color_convert"
+  },
+  "useSysrootToolchain": false,
+  "template": "empty_hls_component"
+}

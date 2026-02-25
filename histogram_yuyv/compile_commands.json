@@ -1,0 +1,27 @@
+[
+  {
+    "directory": "/home/juanes/proyecto-grado/histogram_yuyv",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls",
+      "-hls-syn-headers-dir=/opt/xilinx/2025.1/Vitis/common/technology/autopilot",
+      "-fhlstoplevel=histogram_yuyv",
+      "-c",
+      "/home/juanes/proyecto-grado/histogram_yuyv/histogram.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/histogram_yuyv/histogram.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/histogram_yuyv",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-c",
+      "/home/juanes/proyecto-grado/histogram_yuyv/test_histogram.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/histogram_yuyv/test_histogram.cpp"
+  }
+]

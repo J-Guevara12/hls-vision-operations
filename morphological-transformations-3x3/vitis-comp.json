@@ -1,0 +1,13 @@
+{
+  "name": "morphological-transformations-3x3",
+  "type": "HLS",
+  "configuration": {
+    "componentType": "HLS",
+    "configFiles": [
+      "hls_config.cfg"
+    ],
+    "work_dir": "morphological-transformations-3x3"
+  },
+  "useSysrootToolchain": false,
+  "template": "empty_hls_component"
+}
