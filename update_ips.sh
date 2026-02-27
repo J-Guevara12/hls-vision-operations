@@ -27,3 +27,8 @@ cd histogram_yuyv/ip_repo
 ls -l ../histogram_yuyv/histogram_yuyv.zip
 cp ../histogram_yuyv/histogram_yuyv.zip . && unzip -qo histogram_yuyv.zip
 cd ../../
+
+cd rank-filters/ip_repo
+ls -l ../rank-filters/median_filter_3x3.zip
+cp ../rank-filters/median_filter_3x3.zip . && unzip -qo median_filter_3x3.zip
+cd ../../
