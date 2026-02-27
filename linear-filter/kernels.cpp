@@ -48,17 +48,18 @@ void filter_y_3x3(hls::stream<axis_t>& in_stream,
     
 
     Row_Loop: for (int y = 0; y < height + 1; y++) {
-        std::cout << std::endl << " Fila: " << y << " ";
+        #pragma HLS LOOP_TRIPCOUNT max=2160
         Col_Loop: for (int x = 0; x < width + 1; x++) {
-            uint16_t uv_from_prev_row = chroma_queue[x>>1];
+            #pragma HLS LOOP_TRIPCOUNT max=4096
             #pragma HLS PIPELINE II=1 
+
+            uint16_t uv_from_prev_row = chroma_queue[x>>1];
             uint8_t y_current = 0;
             uint8_t u_current, v_current;
 
             if (y != height && x != width){
                 // 1. GESTIÓN DE ENTRADA (Lectura cada 2 ciclos)
                 if ((x & 1) == 0) {
-                    std::cout << "*" << x;
                     packet_in = in_stream.read();
                     y_current = packet_in.data.range(7, 0);   // Y_par
                     y_impar_reg = packet_in.data.range(23, 16);
