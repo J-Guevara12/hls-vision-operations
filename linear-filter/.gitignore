@@ -5,6 +5,8 @@
 /ip_repo
 /build
 /export
+/hls
+/reports
 
 # Ignore object files and dependent files
 .o
@@ -24,3 +26,4 @@
 _ide/logs
 _ide/.wsdata
 
+*.hls*

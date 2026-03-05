@@ -1,8 +1,99 @@
 #include "kernels.hpp"
-#include "hls_vision_utils.hpp"
+#include <ap_axi_sdata.h>
+#include <hls_stream.h>
 #include <iostream>
+#define PPP 2
 
-void filter_y_3x3(hls::stream<axis_t>& in_stream, 
+
+// ============================================================
+// stage_filter
+//
+// Aplica la convolución 3x3 sobre el stream de píxeles Y.
+// Procesa PPP píxeles por ciclo usando WindowManager<PPP>.
+//
+// Desfase de salida: (width + PPP) * (height + 1) iteraciones
+// para drenar el pipeline al final del frame.
+// ============================================================
+void stage_filter(hls::stream<ap_uint<PPP*8>>& y_in,
+                  hls::stream<ap_uint<PPP*8>>& y_out,
+                  int width, int height,
+                  short k[3][3], uint8_t shift_val) {
+    hls_lib::WindowManager<uint8_t, 3, MAX_WIDTH, PPP> wm;
+    const int GROUPS = width / PPP;
+
+    for (int y = 0; y < height + 1; y++) {
+        #pragma HLS LOOP_TRIPCOUNT max=2160
+        for (int g = 0; g <= GROUPS + 1; g++) {
+            #pragma HLS LOOP_TRIPCOUNT max=4096/PPP
+            #pragma HLS PIPELINE II=1
+
+            // Leer del stream solo cuando hay datos reales
+            uint8_t pixels[PPP] = {};
+            #pragma HLS ARRAY_PARTITION variable=pixels complete
+
+            //std::cout << "( " << g*PPP << ", " << y << ")"<<std::endl;
+
+            if (y < height && g < GROUPS) {
+                //std::cout << "Leyendo pixeles: ";
+                ap_uint<PPP*8> y_val = y_in.read();
+                for (int p = 0; p < PPP; p++) {
+                    #pragma HLS UNROLL
+                    pixels[p] = (y_val >> (p<<3)) & 0xFF;
+                    //std::cout << (int)pixels[p] << ", ";
+                }
+                //std::cout << std::endl;
+            }
+
+            uint8_t wins[PPP][3][3];
+            #pragma HLS ARRAY_PARTITION variable=wins complete
+            wm.shiftN(pixels, g, wins);
+
+            // Emitir con desfase (1 fila, 1 grupo)
+            if (y >= 1 && g >= 1 && g <= GROUPS) {
+                ap_uint<PPP*8> packet_out = 0;
+                for (int p = 0; p < PPP; p++) {
+                    #pragma HLS UNROLL
+                    int col = (g-1) * PPP + p;
+                    bool is_border = (y == 1      || y == height ||
+                                      col == 0 || col >= width - 1 );
+                    uint8_t result = 0;
+                    if (!is_border) {
+                        int acc = 0;
+                        for (int dy = 0; dy < 3; dy++){
+                        #pragma HLS UNROLL
+                            for (int dx = 0; dx < 3; dx++) {
+                                #pragma HLS UNROLL
+                                //std::cout << k[dy][dx] << "*" << (int) wins[p][dy][dx] << ", ";
+                                acc += wins[p][dy][dx] * k[dy][dx];
+                            }
+                            //std::cout << std::endl;
+                        }
+                        //std::cout << "Resultado X=" << col << ", Y=" << y-1 << "======" << acc << std::endl << std::endl;
+                        result = hls_lib::saturate_cast<8>(acc >> shift_val);
+                    }
+                    else {
+                        //std::cout << "Borde X=" << col << ", Y=" << y-1 << "======" << std::endl << std::endl;
+                    }
+                    packet_out |= (ap_uint<PPP*8>) result << (p<<3) ;
+                }
+                y_out.write(packet_out);
+            }
+        }
+    }
+}
+
+// ============================================================
+// filter_y_3x3 — Top Level
+//
+// Pipeline de tres stages con DATAFLOW:
+//   hls_lib::stage_read   → desempaqueta YUYV
+//   stage_filter → convolución 3x3 con PPP píxeles/ciclo
+//   hls_lib::stage_write  → reempaqueta YUYV con UV bypass
+//
+// Throughput: width*height/PPP ciclos por frame (vs width*height anterior)
+// Para PPP=2: 2x mejora de throughput sobre implementación original
+// ============================================================
+void filter_y_3x3(hls::stream<axis_t>& in_stream,
                    hls::stream<axis_t>& out_stream,
                    int width, int height,
                    short k00, short k01, short k02,
@@ -10,126 +101,51 @@ void filter_y_3x3(hls::stream<axis_t>& in_stream,
                    short k20, short k21, short k22,
                    uint8_t shift_val) {
 
-    // Interfaces para conectar con Zynq (PS)
+    // ── Interfaces AXI ──────────────────────────────────────
     #pragma HLS INTERFACE axis port=in_stream
     #pragma HLS INTERFACE axis port=out_stream
-    #pragma HLS INTERFACE s_axilite port=width bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=height bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=width     bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=height    bundle=CTRL
     #pragma HLS INTERFACE s_axilite port=shift_val bundle=CTRL
-    // Coeficientes individuales
-    #pragma HLS INTERFACE s_axilite port=k00 bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=k01 bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=k02 bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=k10 bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=k11 bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=k12 bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=k20 bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=k21 bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=k22 bundle=CTRL
-    #pragma HLS INTERFACE s_axilite port=return bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=k00       bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=k01       bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=k02       bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=k10       bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=k11       bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=k12       bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=k20       bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=k21       bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=k22       bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=return    bundle=CTRL
 
-    // 1. Line Buffers: Guardan Y de las filas anteriores
-    // Usamos 'static' para que se mapee a BRAM
-    static hls_lib::WindowManager<uint8_t, 3, MAX_WIDTH> wm;
+    // ── DATAFLOW ─────────────────────────────────────────────
+    #pragma HLS DATAFLOW
 
-    // 2. Chroma Buffer: Necesitamos guardar U/V para sincronizarlos
-    // con el retraso que introduce el filtro (1 fila de latencia)
-    static uint16_t chroma_queue[MAX_WIDTH>>1]; // Guarda pares UV
-    #pragma HLS BIND_STORAGE variable=chroma_queue type=RAM_T2P impl=BRAM
-    #pragma HLS DEPENDENCE variable=chroma_queue inter false
+    // Ensamblar kernel en array para pasarlo a stage_filter
+    // ARRAY_PARTITION complete para que las 9 multiplicaciones
+    // sean paralelas en stage_filter
+    short k[3][3] = {{k00, k01, k02},
+                     {k10, k11, k12},
+                     {k20, k21, k22}};
+    #pragma HLS ARRAY_PARTITION variable=k complete
 
-    // Registro para sostener el dato de salida durante los 2 ciclos (par/impar)
-    uint16_t uv_output_reg[2];
+    // ── Streams internos ────────────────────────────────────
+    // y_stream: PPP píxeles Y por ciclo entre read y filter
+    hls::stream<ap_uint<PPP*8>> y_stream("y_stream");
+    #pragma HLS STREAM variable=y_stream depth=2
 
-    // Registros para mantener el estado entre iteraciones par/impar
-    axis_t packet_in;
-    uint8_t y_impar_reg;
-    uint8_t y_filt_par_reg;
-    
+    // uv_stream: bypass de croma con profundidad suficiente para
+    // absorber el desfase de 1 fila que introduce stage_filter
+    // depth = width/PPP + margen para no bloquear hls_lib::stage_read
+    hls::stream<uint16_t> uv_stream("uv_stream");
+    #pragma HLS STREAM variable=uv_stream depth=MAX_WIDTH/PPP + 8
 
-    Row_Loop: for (int y = 0; y < height + 1; y++) {
-        #pragma HLS LOOP_TRIPCOUNT max=2160
-        Col_Loop: for (int x = 0; x < width + 1; x++) {
-            #pragma HLS LOOP_TRIPCOUNT max=4096
-            #pragma HLS PIPELINE II=1 
+    // y_filt_stream: PPP píxeles Y filtrados por ciclo entre filter y write
+    hls::stream<ap_uint<PPP*8>> y_filt_stream("y_filt_stream");
+    #pragma HLS STREAM variable=y_filt_stream depth=2
 
-            uint16_t uv_from_prev_row = chroma_queue[x>>1];
-            uint8_t y_current = 0;
-            uint8_t u_current, v_current;
-
-            if (y != height && x != width){
-                // 1. GESTIÓN DE ENTRADA (Lectura cada 2 ciclos)
-                if ((x & 1) == 0) {
-                    packet_in = in_stream.read();
-                    y_current = packet_in.data.range(7, 0);   // Y_par
-                    y_impar_reg = packet_in.data.range(23, 16);
-
-                    u_current = packet_in.data.range(15, 8);  // U
-                    v_current = packet_in.data.range(31, 24);
-
-                    
-                    
-                    // Sincronización de croma (usando el buffer de línea)
-                    
-                    uv_output_reg[1] = uv_output_reg[00];
-                    uv_output_reg[0] = uv_from_prev_row;
-
-                    chroma_queue[x>>1] = (v_current << 8) | u_current;
-                    
-
-                } else {
-                    y_current = y_impar_reg;
-                }
-
-                // 2. ACTUALIZAR VENTANA (Compartida)
-                wm.shift(y_current, x);
-                
-            }
-            
-
-            if (y != 0 && x != 0){
-                bool is_border = (y  == 1 || y == height || x == 1 || x == width);
-                uint8_t y_filt;
-
-
-                if (is_border) {
-                    y_filt = 0; 
-                } else {
-                    
-                    int acc = wm.get(0,0)*k00 + wm.get(0,1)*k01 + wm.get(0,2)*k02 +
-                            wm.get(1,0)*k10 + wm.get(1,1)*k11 + wm.get(1,2)*k12 +
-                            wm.get(2,0)*k20 + wm.get(2,1)*k21 + wm.get(2,2)*k22;
-                    
-                    y_filt = hls_lib::saturate_cast<8>(acc >> shift_val);
-                }
-                
-                // 4. GESTIÓN DE SALIDA (Escritura cada 2 ciclos)
-                if ((x & 1) == 1) {
-                    y_filt_par_reg = y_filt;
-                } else {
-                    uint16_t uv_output = 0; 
-                    if (y == height){
-                        uv_output = chroma_queue[(x>>1)-1];
-                    } else {
-                        uv_output = x == width ? uv_output_reg[0]: uv_output_reg[1];
-                    }
-                    
-                    axis_t packet_out;
-                    packet_out.data.range(7, 0)   = y_filt_par_reg;
-                    packet_out.data.range(15, 8)  = uv_output & 0xFF;        // U
-                    packet_out.data.range(23, 16) = y_filt;                    // Y_impar filtrado
-                    packet_out.data.range(31, 24) = (uv_output >> 8) & 0xFF; // V
-
-                    
-                    // Propagar señales de control
-                    packet_out.keep = packet_in.keep;
-                    packet_out.strb = packet_in.strb;
-                    packet_out.last = (x == width) && (y == height) ? 1 : 0;   // EOL
-
-                    out_stream.write(packet_out);
-                }
-
-            }
-        }
-    }
+    // ── Stages ──────────────────────────────────────────────
+    hls_lib::stage_read  (in_stream,    y_stream,      uv_stream, width, height);
+    stage_filter(y_stream,     y_filt_stream, width, height, k, shift_val);
+    hls_lib::stage_write (y_filt_stream, uv_stream,    out_stream, width, height);
 }

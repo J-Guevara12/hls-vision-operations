@@ -30,8 +30,7 @@
 #include "ap_int.h"
 #include "ap_axi_sdata.h"
 #include "hls_stream.h"
-
-typedef ap_axiu<32,0,0,0> axis_t;
+#include "kernels.hpp"
 
 // ============================================================
 // Prototipo de la función bajo prueba
@@ -655,11 +654,15 @@ static bool test_linearity() {
         }
     return ok;
 }
+int main_filter();
 
 // ============================================================
 // MAIN
 // ============================================================
 int main() {
+    if (main_filter()!=0){
+        return 1;
+    }
     std::cout << "======================================\n";
     std::cout << "  Testbench: filter_y_3x3\n";
     std::cout << "  Formato: YUYV 32bpp\n";

@@ -7,6 +7,7 @@
       "-fhls",
       "-hls-syn-headers-dir=/opt/xilinx/2025.1/Vitis/common/technology/autopilot",
       "-fhlstoplevel=filter_y_3x3",
+      "-I../hls_vision_utils",
       "-c",
       "/home/juanes/proyecto-grado/linear-filter/kernels.cpp"
     ],
@@ -19,6 +20,46 @@
       "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
       "-fhls-tb",
       "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
+      "-c",
+      "/home/juanes/proyecto-grado/linear-filter/test_stage_read.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/linear-filter/test_stage_read.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/linear-filter",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
+      "-c",
+      "/home/juanes/proyecto-grado/linear-filter/test_stage_filter.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/linear-filter/test_stage_filter.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/linear-filter",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
+      "-c",
+      "/home/juanes/proyecto-grado/linear-filter/test_stage_write.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/linear-filter/test_stage_write.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/linear-filter",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
       "-c",
       "/home/juanes/proyecto-grado/linear-filter/test_kernels.cpp"
     ],
