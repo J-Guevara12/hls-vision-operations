@@ -1,0 +1,156 @@
+<ENTRY>
+{
+ "thisFile": "/home/juanes/proyecto-grado/hls_vision_utils/hls_vision_utils.hlsrun_csim_summary",
+ "connectId": "",
+ "serverToken": "",
+ "timestamp": "0"
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_CmdStep",
+ "dateTimestamp": "Thu Mar  5 00:08:30 2026",
+ "timestampMillis": "1772690910902",
+ "buildStep": {
+  "cmdId": "29f8869a-a7c7-442e-9c8e-bc2c202c40ab",
+  "name": "vitis-run",
+  "logFile": "/home/juanes/proyecto-grado/hls_vision_utils/logs/hls_vision_utils.steps.log",
+  "commandLine": "/opt/xilinx/2025.1/Vitis/bin/unwrapped/lnx64.o/vitis-run  --mode hls --csim --config ./hls_config.cfg --work_dir . ",
+  "args": [
+   "--mode",
+   "hls",
+   "--csim",
+   "--config",
+   "./hls_config.cfg",
+   "--work_dir",
+   "."
+  ],
+  "iniFiles": [],
+  "cwd": "/home/juanes/proyecto-grado/hls_vision_utils"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Thu Mar  5 00:08:30 2026",
+ "timestampMillis": "1772690910902",
+ "status": {
+  "cmdId": "29f8869a-a7c7-442e-9c8e-bc2c202c40ab",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_FlowMetaData",
+ "dateTimestamp": "Thu Mar  5 00:08:34 2026",
+ "timestampMillis": "1772690914375",
+ "buildSummary": {
+  "hardwarePlatform": "",
+  "hardwareDsa": "",
+  "platformDirectory": "",
+  "runtime": "",
+  "systemConfig": "",
+  "flow": "BF_RUN",
+  "target": "TT_HLS_C_SIM",
+  "kernels": [
+   {
+    "base": {
+     "type": "KERNEL",
+     "name": "",
+     "file": "",
+     "reports": [],
+     "uuid": ""
+    },
+    "sources": [
+     "/home/juanes/proyecto-grado/hls_vision_utils/hls_vision_utils.hpp"
+    ],
+    "psSources": [],
+    "cuNames": [],
+    "type": "HLS",
+    "frequency": 0,
+    "freqUnits": ""
+   }
+  ],
+  "toolVersion": "2025.1"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_SubCmdStep",
+ "dateTimestamp": "Thu Mar  5 00:08:34 2026",
+ "timestampMillis": "1772690914376",
+ "buildStep": {
+  "cmdId": "2caf7fe6-7f13-4189-8f69-77c6fc073cb5",
+  "name": "",
+  "logFile": "/home/juanes/proyecto-grado/hls_vision_utils/hls/hls.log",
+  "commandLine": "",
+  "args": [],
+  "iniFiles": [],
+  "cwd": "/home/juanes/proyecto-grado/hls_vision_utils"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Thu Mar  5 00:08:34 2026",
+ "timestampMillis": "1772690914376",
+ "status": {
+  "cmdId": "2caf7fe6-7f13-4189-8f69-77c6fc073cb5",
+  "state": "CS_RUNNING"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Thu Mar  5 00:08:38 2026",
+ "timestampMillis": "1772690918115",
+ "status": {
+  "cmdId": "2caf7fe6-7f13-4189-8f69-77c6fc073cb5",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Status",
+ "dateTimestamp": "Thu Mar  5 00:08:38 2026",
+ "timestampMillis": "1772690918215",
+ "status": {
+  "cmdId": "29f8869a-a7c7-442e-9c8e-bc2c202c40ab",
+  "state": "CS_PASSED"
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Thu Mar  5 00:08:38 2026",
+ "timestampMillis": "1772690918217",
+ "report": {
+  "path": "",
+  "name": "",
+  "fileType": "HTML",
+  "reportType": "GLOBAL_RULECHECK_GUIDANCE",
+  "cmdId": ""
+ }
+}
+</ENTRY>
+<ENTRY>
+{
+ "type": "ET_Report",
+ "dateTimestamp": "Thu Mar  5 00:08:38 2026",
+ "timestampMillis": "1772690918217",
+ "report": {
+  "path": "",
+  "name": "",
+  "fileType": "BINARY_PROTOBUF",
+  "reportType": "GLOBAL_RULECHECK_GUIDANCE",
+  "cmdId": ""
+ }
+}
+</ENTRY>

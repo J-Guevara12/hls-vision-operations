@@ -1,0 +1,50 @@
+[
+  {
+    "directory": "/home/juanes/proyecto-grado/hls_vision_utils",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-c",
+      "/home/juanes/proyecto-grado/hls_vision_utils/test_window_manager.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/hls_vision_utils/test_window_manager.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/hls_vision_utils",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-c",
+      "/home/juanes/proyecto-grado/hls_vision_utils/./test_stage_read.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/hls_vision_utils/./test_stage_read.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/hls_vision_utils",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-c",
+      "/home/juanes/proyecto-grado/hls_vision_utils/./test_main.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/hls_vision_utils/./test_main.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/hls_vision_utils",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-c",
+      "/home/juanes/proyecto-grado/hls_vision_utils/./test_stage_write.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/hls_vision_utils/./test_stage_write.cpp"
+  }
+]
