@@ -654,6 +654,150 @@ static bool test_linearity() {
         }
     return ok;
 }
+
+// ============================================================
+// TEST 16 — Resolución 4K (3840x2160)
+// Verifica:
+//   1. No hay deadlock — el IP termina en tiempo finito
+//   2. Conteo exacto de paquetes de salida
+//   3. Bordes en cero
+//   4. Interior correcto con golden model sobre muestra representativa
+//      (verificar todas las filas sería demasiado lento en simulación,
+//       se muestrea la primera fila interior, la última y la del medio)
+// ============================================================
+static bool test_4k_resolution() {
+    const int W = 3840, H = 2160;
+    const int TOTAL_PKTS = (W / 2) * H;
+
+    // Imagen con patrón pseudo-aleatorio — usar vector plano para eficiencia
+    // No se almacena la Image completa para no consumir ~8MB de RAM innecesaria;
+    // se genera on-the-fly al cargar el stream y se guarda solo para golden.
+    // Para el golden solo guardamos las filas que vamos a verificar:
+    //   fila 1 (primera interior), H/2 (medio), H-2 (última interior)
+    const int CHECK_ROWS[] = {1, H/2, H-2};
+    const int N_CHECK = 3;
+
+    // Generar stream de entrada y guardar filas de referencia
+    hls::stream<axis_t> in, out;
+
+    // Filas de referencia para golden
+    std::vector<std::vector<uint8_t>> ref_rows(N_CHECK, std::vector<uint8_t>(W));
+    // También necesitamos las filas adyacentes para el golden (y-1, y, y+1)
+    // Guardamos un rango: [CHECK_ROWS[0]-1 .. CHECK_ROWS[N_CHECK-1]+1]
+    int row_start = CHECK_ROWS[0] - 1;
+    int row_end   = CHECK_ROWS[N_CHECK-1] + 1;
+    int n_stored  = row_end - row_start + 1;
+    std::vector<std::vector<uint8_t>> stored(n_stored, std::vector<uint8_t>(W));
+
+    for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x += 2) {
+            uint8_t y0 = (uint8_t)((y * 37 + x * 53 + y*x % 199) % 256);
+            uint8_t y1 = (uint8_t)((y * 37 + (x+1) * 53 + y*(x+1) % 199) % 256);
+            bool last  = (y == H-1) && (x == W-2);
+            in.write(make_yuyv(y0, 128, y1, 128, last));
+            if (y >= row_start && y <= row_end) {
+                stored[y - row_start][x]   = y0;
+                stored[y - row_start][x+1] = y1;
+            }
+        }
+    }
+
+    run_filter(in, out, W, H, K_GAUSSIAN);
+
+    // Verificar conteo de paquetes
+    if ((int)out.size() != TOTAL_PKTS) {
+        std::cerr << "    [4K] Paquetes recibidos=" << out.size()
+                  << " esperados=" << TOTAL_PKTS << "\n";
+        // Drenar el stream antes de retornar
+        while (!out.empty()) out.read();
+        return false;
+    }
+
+    bool ok = true;
+    axis_t last_pkt;
+
+    // Leer toda la salida verificando bordes y filas de interés
+    for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x += 2) {
+            axis_t pkt = out.read();
+            last_pkt = pkt;
+            uint8_t hw_y0 = (uint8_t)pkt.data.range(7,  0);
+            uint8_t hw_y1 = (uint8_t)pkt.data.range(23, 16);
+
+            // Verificar bordes: primera y última fila deben ser 0
+            if (y == 0 || y == H-1) {
+                if (hw_y0 != 0 || hw_y1 != 0) {
+                    std::cerr << "    [4K] Borde fila y=" << y
+                              << " x=" << x << " no es cero:"
+                              << " y0=" << (int)hw_y0
+                              << " y1=" << (int)hw_y1 << "\n";
+                    ok = false;
+                }
+                continue;
+            }
+
+            // Verificar primera y última columna
+            if (x == 0 && hw_y0 != 0) {
+                std::cerr << "    [4K] Borde col x=0 y=" << y
+                          << " y0=" << (int)hw_y0 << " esperado 0\n";
+                ok = false;
+            }
+            if (x == W-2 && hw_y1 != 0) {
+                std::cerr << "    [4K] Borde col x=" << W-1 << " y=" << y
+                          << " y1=" << (int)hw_y1 << " esperado 0\n";
+                ok = false;
+            }
+
+            // Verificar golden en filas de muestra (solo columnas interiores)
+            for (int ci = 0; ci < N_CHECK; ci++) {
+                if (y != CHECK_ROWS[ci]) continue;
+                if (x == 0 || x >= W-2) continue;  // bordes ya verificados
+
+                // Calcular golden para y0 en (y, x)
+                int acc0 = 0, acc1 = 0;
+                for (int dy = -1; dy <= 1; dy++) {
+                    int ry = y + dy - row_start;
+                    for (int dx = -1; dx <= 1; dx++) {
+                        short kv = K_GAUSSIAN.k[dy+1][dx+1];
+                        acc0 += stored[ry][x   + dx] * kv;
+                        acc1 += stored[ry][x+1 + dx] * kv;
+                    }
+                }
+                uint8_t golden_y0 = saturate(acc0 >> K_GAUSSIAN.shift);
+                uint8_t golden_y1 = saturate(acc1 >> K_GAUSSIAN.shift);
+
+                if (hw_y0 != golden_y0) {
+                    std::cerr << "    [4K] Golden falla [y=" << y
+                              << ",x=" << x << "]"
+                              << " hw=" << (int)hw_y0
+                              << " expected=" << (int)golden_y0 << "\n";
+                    ok = false;
+                }
+                if (hw_y1 != golden_y1) {
+                    std::cerr << "    [4K] Golden falla [y=" << y
+                              << ",x=" << x+1 << "]"
+                              << " hw=" << (int)hw_y1
+                              << " expected=" << (int)golden_y1 << "\n";
+                    ok = false;
+                }
+            }
+        }
+    }
+
+    if (last_pkt.last != 1) {
+        std::cerr << "    [4K] LAST=0 en el último paquete, esperado LAST=1\n";
+        ok = false;
+    }
+
+    if (!out.empty()) {
+        std::cerr << "    [4K] Stream no vacío tras leer " << TOTAL_PKTS
+                  << " paquetes — paquetes extra: " << out.size() << "\n";
+        ok = false;
+    }
+
+    return ok;
+}
+
 int main_filter();
 
 // ============================================================
@@ -689,6 +833,7 @@ int main() {
     report("T13 - Conteo exacto de paquetes",          test_packet_count());
     report("T14 - Resolución mínima 4x4",              test_minimum_resolution());
     report("T15 - Propiedad de linealidad",            test_linearity());
+    report("T16 - Resolución 4K (3840x2160)",          test_4k_resolution());
 
     std::cout << "\n======================================\n";
     std::cout << "  Resultado: " << tests_passed << "/"

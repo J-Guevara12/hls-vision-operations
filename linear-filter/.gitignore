@@ -1,5 +1,6 @@
 # Ignore build output directory
 /linear-filter
+*.zip
 
 /.cache
 /ip_repo
