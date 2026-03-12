@@ -9,8 +9,8 @@ cp ../image_invert.zip . && unzip -qo image_invert.zip
 cd ../../..
 
 cd linear-filter/ip_repo
-ls -l ../linear-filter/filter_y_3x3.zip
-cp ../linear-filter/filter_y_3x3.zip . && unzip -qo filter_y_3x3.zip
+ls -l ../filter_y_3x3.zip
+cp ../filter_y_3x3.zip . && unzip -qo filter_y_3x3.zip
 cd ../../
 
 cd morphological-transformations-3x3/ip_repo
