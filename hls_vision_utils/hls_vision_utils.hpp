@@ -9,6 +9,10 @@
 // Tipo de dato AXI Stream (32-bit: YUYV)
 typedef ap_axiu<32,0,0,0> axis_t;
 
+constexpr int log2_const(int n) {
+    return (n <= 1) ? 0 : 1 + log2_const(n / 2);
+}
+
 namespace hls_lib {
 
 template<typename T, int WIN_SIZE, int MAX_W, int PPP = 1>
@@ -155,8 +159,11 @@ void stage_read(hls::stream<axis_t>&   in,
                         hls::stream<uint16_t>& uv_out,
                         int width, int height) {
 
-    int GROUPS = width/PPP;
+    constexpr int EXP = log2_const(PPP);
+    const int GROUPS = width >> EXP;
+
     Row_Loop: for (int y = 0; y < height; y++) {
+        #pragma HLS LOOP_FLATTEN off
         #pragma HLS LOOP_TRIPCOUNT max=2160
         Col_Loop: for (int g = 0; g < GROUPS; g++) {
             #pragma HLS PIPELINE II=1
@@ -205,9 +212,11 @@ void stage_write(hls::stream<ap_uint<PPP*8>>&  y_in,
                          hls::stream<axis_t>&   out,
                          int width, int height) {
 
-    const int GROUPS = width / PPP;
+    constexpr int EXP = log2_const(PPP);
+    const int GROUPS = width >> EXP;
 
     Row_Loop: for (int y = 0; y < height; y++) {
+        #pragma HLS LOOP_FLATTEN off
         #pragma HLS LOOP_TRIPCOUNT max=2160
         Col_Loop: for (int g = 0; g < GROUPS; g++) {
             #pragma HLS LOOP_TRIPCOUNT max=4096/PPP

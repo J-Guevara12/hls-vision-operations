@@ -1,5 +1,6 @@
 # Ignore build output directory
 /hls_vision_utils
+*.hlscompile_summary
 
 /.cache
 /ip_repo

@@ -4,12 +4,14 @@
     "arguments": [
       "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
       "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
-      "-fhls-tb",
-      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-fhls",
+      "-hls-syn-headers-dir=/opt/xilinx/2025.1/Vitis/common/technology/autopilot",
+      "-fhlstoplevel=filter_y_3x3",
+      "-I../hls_vision_utils",
       "-c",
-      "/home/juanes/proyecto-grado/hls_vision_utils/test_window_manager.cpp"
+      "/home/juanes/proyecto-grado/hls_vision_utils/../linear-filter/kernels.cpp"
     ],
-    "file": "/home/juanes/proyecto-grado/hls_vision_utils/test_window_manager.cpp"
+    "file": "/home/juanes/proyecto-grado/hls_vision_utils/../linear-filter/kernels.cpp"
   },
   {
     "directory": "/home/juanes/proyecto-grado/hls_vision_utils",
@@ -18,10 +20,11 @@
       "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
       "-fhls-tb",
       "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
       "-c",
-      "/home/juanes/proyecto-grado/hls_vision_utils/./test_stage_read.cpp"
+      "/home/juanes/proyecto-grado/hls_vision_utils/../linear-filter/test_stage_filter.cpp"
     ],
-    "file": "/home/juanes/proyecto-grado/hls_vision_utils/./test_stage_read.cpp"
+    "file": "/home/juanes/proyecto-grado/hls_vision_utils/../linear-filter/test_stage_filter.cpp"
   },
   {
     "directory": "/home/juanes/proyecto-grado/hls_vision_utils",
@@ -30,21 +33,10 @@
       "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
       "-fhls-tb",
       "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
       "-c",
-      "/home/juanes/proyecto-grado/hls_vision_utils/./test_main.cpp"
+      "/home/juanes/proyecto-grado/hls_vision_utils/../linear-filter/test_kernels.cpp"
     ],
-    "file": "/home/juanes/proyecto-grado/hls_vision_utils/./test_main.cpp"
-  },
-  {
-    "directory": "/home/juanes/proyecto-grado/hls_vision_utils",
-    "arguments": [
-      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
-      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
-      "-fhls-tb",
-      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
-      "-c",
-      "/home/juanes/proyecto-grado/hls_vision_utils/./test_stage_write.cpp"
-    ],
-    "file": "/home/juanes/proyecto-grado/hls_vision_utils/./test_stage_write.cpp"
+    "file": "/home/juanes/proyecto-grado/hls_vision_utils/../linear-filter/test_kernels.cpp"
   }
 ]
