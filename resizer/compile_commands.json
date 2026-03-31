@@ -1,0 +1,69 @@
+[
+  {
+    "directory": "/home/juanes/proyecto-grado/resizer",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls",
+      "-hls-syn-headers-dir=/opt/xilinx/2025.1/Vitis/common/technology/autopilot",
+      "-fhlstoplevel=resize_half_2x",
+      "-I../hls_vision_utils",
+      "-c",
+      "/home/juanes/proyecto-grado/resizer/main.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/resizer/main.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/resizer",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls",
+      "-hls-syn-headers-dir=/opt/xilinx/2025.1/Vitis/common/technology/autopilot",
+      "-fhlstoplevel=resize_half_2x",
+      "-I../hls_vision_utils",
+      "-c",
+      "/home/juanes/proyecto-grado/resizer/resize_half.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/resizer/resize_half.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/resizer",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
+      "-c",
+      "/home/juanes/proyecto-grado/resizer/test_resize_half_stages.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/resizer/test_resize_half_stages.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/resizer",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
+      "-c",
+      "/home/juanes/proyecto-grado/resizer/test_resize_half.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/resizer/test_resize_half.cpp"
+  },
+  {
+    "directory": "/home/juanes/proyecto-grado/resizer",
+    "arguments": [
+      "/opt/xilinx/2025.1/Vitis/vcxx/libexec/clang++",
+      "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
+      "-fhls-tb",
+      "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
+      "-c",
+      "/home/juanes/proyecto-grado/resizer/test_main.cpp"
+    ],
+    "file": "/home/juanes/proyecto-grado/resizer/test_main.cpp"
+  }
+]

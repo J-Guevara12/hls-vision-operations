@@ -32,3 +32,8 @@ cd rank-filters/ip_repo
 ls -l ../rank-filters/median_filter_3x3.zip
 cp ../rank-filters/median_filter_3x3.zip . && unzip -qo median_filter_3x3.zip
 cd ../../
+
+cd resizer/ip_repo
+ls -l ../resizer/resize_half_2x.zip
+cp ../resizer/resize_half_2x.zip . && unzip -qo resize_half_2x.zip
+cd ../../
