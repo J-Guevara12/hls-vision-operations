@@ -7,6 +7,7 @@
       "-fhls",
       "-hls-syn-headers-dir=/opt/xilinx/2025.1/Vitis/common/technology/autopilot",
       "-fhlstoplevel=median_filter_3x3",
+      "-I../hls_vision_utils",
       "-c",
       "/home/juanes/proyecto-grado/rank-filters/median_filter.cpp"
     ],
@@ -19,6 +20,7 @@
       "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
       "-fhls-tb",
       "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
       "-c",
       "/home/juanes/proyecto-grado/rank-filters/test_median_filter.cpp"
     ],
