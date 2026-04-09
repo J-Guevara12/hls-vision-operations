@@ -345,7 +345,7 @@ static bool test_tl_4k() {
 // La fila 4 de entrada se consume pero no produce salida
 // ============================================================
 static bool test_tl_odd_height() {
-    const int W = 8, H = 5;
+    const int W = 240, H = 135;
     const int OUT_W = W/2, OUT_H = H/2;  // 5/2 = 2
     const int EXP_PKTS = (OUT_W/2) * OUT_H;
  
