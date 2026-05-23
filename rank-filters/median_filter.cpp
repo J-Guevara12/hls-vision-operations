@@ -1,5 +1,4 @@
 #include "median_filter.hpp"
-#include <cstdint>
 #include <iostream>
 
 
@@ -96,7 +95,7 @@ void median_filter_3x3(hls::stream<axis_t>& in_stream,
     #pragma HLS INTERFACE s_axilite port=height bundle=CTRL
     
     #pragma HLS INTERFACE s_axilite port=return bundle=CTRL
-
+    #pragma HLS DATAFLOW
     hls::stream<ap_uint<PPP*8>> y_stream("y_stream");
     #pragma HLS STREAM variable=y_stream depth=2
 
