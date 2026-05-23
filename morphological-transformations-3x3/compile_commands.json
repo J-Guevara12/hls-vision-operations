@@ -7,6 +7,7 @@
       "-fhls",
       "-hls-syn-headers-dir=/opt/xilinx/2025.1/Vitis/common/technology/autopilot",
       "-fhlstoplevel=transformation_3x3",
+      "-I../hls_vision_utils",
       "-c",
       "/home/juanes/proyecto-grado/morphological-transformations-3x3/transformations.cpp"
     ],
@@ -19,6 +20,7 @@
       "--gcc-toolchain=/opt/xilinx/2025.1/Vitis/tps/lnx64/gcc-8.3.0",
       "-fhls-tb",
       "-hls-sim-headers-dir=/opt/xilinx/2025.1/Vitis/include",
+      "-I../hls_vision_utils",
       "-c",
       "/home/juanes/proyecto-grado/morphological-transformations-3x3/test_transformations.cpp"
     ],
