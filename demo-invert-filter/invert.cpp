@@ -14,9 +14,9 @@ void image_invert(hls::stream<pixel_stream>& stream_in, hls::stream<pixel_stream
     // 1. INTERFACES (Los "Cables")
     #pragma HLS INTERFACE axis port=stream_in
     #pragma HLS INTERFACE axis port=stream_out
-    #pragma HLS INTERFACE s_axilite port=width bundle=control
-    #pragma HLS INTERFACE s_axilite port=height bundle=control
-    #pragma HLS INTERFACE s_axilite port=return
+    #pragma HLS INTERFACE s_axilite port=width bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=height bundle=CTRL
+    #pragma HLS INTERFACE s_axilite port=return bundle=CTRL
 
     // Variables temporales
     pixel_stream pixel_in;
@@ -25,10 +25,10 @@ void image_invert(hls::stream<pixel_stream>& stream_in, hls::stream<pixel_stream
 
     // 2. EL BUCLE PRINCIPAL
     // Iteramos por todos los pixeles de la imagen
-    Row_Loop: for (int y = 0; y < height; y++) {
+    Row_Loop: for (uint16_t y = 0; y < height; y++) {
         #pragma HLS LOOP_TRIPCOUNT max=2160
         #pragma HLS LOOP_FLATTEN off
-        Col_Loop: for (int x = 0; x < width; x++) {
+        Col_Loop: for (uint16_t x = 0; x < width; x++) {
             #pragma HLS LOOP_TRIPCOUNT max=4096
             #pragma HLS PIPELINE II=1
             // Leer del stream (bloqueante si está vacío)
