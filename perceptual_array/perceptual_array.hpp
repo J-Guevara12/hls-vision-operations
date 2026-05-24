@@ -9,7 +9,7 @@
 // Parámetros del sistema — modificar aquí para reconfigurar
 // ============================================================
 #ifndef WIN_SIZE
-#define WIN_SIZE      13
+#define WIN_SIZE      7
 #endif
 #ifndef NUM_CLASSES
 #define NUM_CLASSES   16
@@ -18,7 +18,7 @@
 #define MAX_WIDTH     4096
 #endif
 #ifndef PPP
-#define PPP           4        // píxeles por ciclo (paquete de 32 bits)
+#define PPP           1        // píxeles por ciclo (1 pixel = 8 bits de un word de 32)
 #endif
 #ifndef BITS_CLASS
 #define BITS_CLASS    4        // log2(NUM_CLASSES)
@@ -54,12 +54,12 @@ typedef ap_uint<PPP * BITS_CLASS> pgroup_t;   // 16 bits — solo Pk o solo P0
 typedef ap_uint<WIN_SIZE * WIN_SIZE * BITS_CLASS> window_t;  // 676 bits
 
 // Resultado de la convolución por clase para 1 píxel
-// 169 entradas de 6 bits → máx 169*63 = 10647 → 14 bits
-typedef ap_uint<14> conv_result_t;
+// 49 entradas de 6 bits → máx 49*63 = 3087 → 12 bits
+typedef ap_uint<12> conv_result_t;
 
 // Vector de resultados de convolución para las NUM_CLASSES clases
-// Empaquetado: 16 × 14 bits = 224 bits
-typedef ap_uint<NUM_CLASSES * 14> conv_vec_t;
+// Empaquetado: 16 × 12 bits = 192 bits
+typedef ap_uint<NUM_CLASSES * 12> conv_vec_t;
 
 // Resultado del blend por clase para 1 píxel
 // alpha*P0 + (1-alpha)*conv/K → cabe en 8 bits con los 6 bits de alpha

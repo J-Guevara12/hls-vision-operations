@@ -1,22 +1,16 @@
 #include "perceptual_array.hpp"
 
 // ============================================================
-// stage_conv_engine
+// stage_conv_engine — WIN_SIZE×WIN_SIZE, II=4
 //
-// Recibe 1 ventana WIN_SIZE×WIN_SIZE de píxeles de BITS_CLASS bits.
-// Para cada una de las NUM_CLASSES clases calcula:
+// Para cada ventana calcula:
+//   conv[c] = Σ(i,j) (win[i][j] == c) ? gauss[i][j] : 0
 //
-//   conv[clase] = Σ(i,j) (win[i][j] == clase) ? gauss[i][j] : 0
+// Arquitectura: PIPELINE II=4 en el loop principal.
+// La clase loop se despliega factor=4 → 4 clases por ciclo,
+// 4 ciclos por ventana → (WIN_SIZE² × 4) ops paralelas/ciclo.
 //
-// La multiplicación desaparece porque el píxel es binario en
-// representación one-hot — se reemplaza por AND de 1 bit con
-// el peso gaussiano de BITS_GAUSS bits.
-//
-// Árbol de sumas: WIN_SIZE*WIN_SIZE = 169 entradas de BITS_GAUSS bits
-// Máximo acumulado: 169 × (2^BITS_GAUSS - 1) = 169 × 63 = 10647
-// Bits necesarios: ceil(log2(10647)) = 14 bits → conv_result_t
-//
-// Emite conv_vec_t: NUM_CLASSES resultados de 14 bits empaquetados
+// Máximo acumulador: 49 × 63 = 3087 → 12 bits (conv_result_t)
 // ============================================================
 
 void stage_conv_engine(
@@ -27,17 +21,14 @@ void stage_conv_engine(
 
     #pragma HLS ARRAY_PARTITION variable=gauss complete dim=0
 
-    // Total de ventanas a procesar: width * height (PPP ventanas por grupo,
-    // emitidas de a 1 por ciclo por el WM en opción B)
     const int TOTAL = width * height;
 
     Main_Loop: for (int i = 0; i < TOTAL; i++) {
-        #pragma HLS PIPELINE II=1
+        #pragma HLS PIPELINE II=4
         #pragma HLS LOOP_TRIPCOUNT max=MAX_WIDTH*2160
 
         window_t win = win_in.read();
 
-        // Extraer los WIN_SIZE*WIN_SIZE píxeles de la ventana
         px_t pixels[WIN_SIZE][WIN_SIZE];
         #pragma HLS ARRAY_PARTITION variable=pixels complete dim=0
 
@@ -50,11 +41,10 @@ void stage_conv_engine(
             }
         }
 
-        // Para cada clase calcular la convolución
         conv_vec_t result_vec = 0;
 
         for (int c = 0; c < NUM_CLASSES; c++) {
-            #pragma HLS UNROLL
+            #pragma HLS UNROLL factor=4
 
             conv_result_t acc = 0;
 
@@ -62,7 +52,6 @@ void stage_conv_engine(
                 #pragma HLS UNROLL
                 for (int wx = 0; wx < WIN_SIZE; wx++) {
                     #pragma HLS UNROLL
-                    // AND: si el píxel pertenece a la clase c, sumar el peso
                     ap_uint<BITS_GAUSS> weight = gauss[wy][wx] & 0x3F;
                     ap_uint<BITS_GAUSS> contribution =
                         (pixels[wy][wx] == (px_t)c) ? weight : (ap_uint<BITS_GAUSS>)0;
@@ -70,7 +59,7 @@ void stage_conv_engine(
                 }
             }
 
-            result_vec.range(c*14+13, c*14) = acc;
+            result_vec.range(c*12+11, c*12) = acc;
         }
 
         conv_out.write(result_vec);

@@ -9,7 +9,7 @@
 //   - Saturación a 255 si suma > 255
 //   - Conteo exacto de vectores emitidos
 //   - Golden model con valores conocidos
-//   - P0 se consume al ritmo correcto (1 grupo cada PPP ventanas)
+//   - P0 se consume al ritmo correcto (1 pixel por ciclo, PPP=1)
 // ============================================================
 
 #include <iostream>
@@ -30,15 +30,13 @@ static uint8_t get_blend(blend_vec_t v, int c) {
     return (uint8_t)v.range(c*8+7, c*8);
 }
 
-// Construye un conv_vec_t con todos los valores iguales a val para clase c
 static conv_vec_t make_conv_vec(uint16_t vals[NUM_CLASSES]) {
     conv_vec_t v = 0;
     for (int c = 0; c < NUM_CLASSES; c++)
-        v.range(c*14+13, c*14) = vals[c] & 0x3FFF;
+        v.range(c*12+11, c*12) = vals[c] & 0xFFF;
     return v;
 }
 
-// Construye un pgroup_t con PPP píxeles todos de clase c
 static pgroup_t make_p0_group(uint8_t classes[PPP]) {
     pgroup_t g = 0;
     for (int p = 0; p < PPP; p++)
@@ -46,7 +44,6 @@ static pgroup_t make_p0_group(uint8_t classes[PPP]) {
     return g;
 }
 
-// Golden model del scale_and_blend para 1 píxel
 static uint8_t golden_blend(uint16_t conv_val, uint8_t p0_class,
                               int target_class, uint8_t alpha,
                               uint16_t inv_k_1malpha) {
@@ -69,7 +66,7 @@ static bool test_s_alpha_dominates() {
     uint16_t convs[NUM_CLASSES] = {};
     conv_in.write(make_conv_vec(convs));
 
-    uint8_t p0_cls[PPP] = {C, C, C, C};
+    uint8_t p0_cls[PPP] = {C};
     p0_in.write(make_p0_group(p0_cls));
 
     stage_scale_and_blend(conv_in, p0_in, blend_out, ALPHA, 0, 1, 1);
@@ -94,7 +91,7 @@ static bool test_s_alpha_dominates() {
 // TEST 2 — alpha=0 → resultado = conv*C >> SHIFT
 // ============================================================
 static bool test_s_no_alpha() {
-    const uint8_t INV_K = 128;  // C = 128
+    const uint8_t INV_K = 128;
     hls::stream<conv_vec_t>  conv_in;
     hls::stream<pgroup_t>    p0_in;
     hls::stream<blend_vec_t> blend_out;
@@ -103,7 +100,7 @@ static bool test_s_no_alpha() {
     convs[3] = 1000;
     conv_in.write(make_conv_vec(convs));
 
-    uint8_t p0_cls[PPP] = {3,3,3,3};
+    uint8_t p0_cls[PPP] = {3};
     p0_in.write(make_p0_group(p0_cls));
 
     stage_scale_and_blend(conv_in, p0_in, blend_out, 0, INV_K, 1, 1);
@@ -129,7 +126,7 @@ static bool test_s_p0_mux_correct() {
     uint16_t convs[NUM_CLASSES] = {};
     conv_in.write(make_conv_vec(convs));
 
-    uint8_t p0_cls[PPP] = {TARGET,TARGET,TARGET,TARGET};
+    uint8_t p0_cls[PPP] = {TARGET};
     p0_in.write(make_p0_group(p0_cls));
 
     stage_scale_and_blend(conv_in, p0_in, blend_out, ALPHA, 0, 1, 1);
@@ -149,20 +146,20 @@ static bool test_s_p0_mux_correct() {
 
 // ============================================================
 // TEST 4 — Saturación a 255
+// Con INV_K=5500: scaled=(3087*5500)>>16=259; 259+63=322>255 → satura
 // ============================================================
 static bool test_s_saturation() {
-    // Con INV_K=1400: scaled = (10647*1400)>>16 = 227; 227+63 = 290 > 255 → satura
     const uint8_t  ALPHA = 63;
-    const uint16_t INV_K = 1400;
+    const uint16_t INV_K = 5500;
     hls::stream<conv_vec_t>  conv_in;
     hls::stream<pgroup_t>    p0_in;
     hls::stream<blend_vec_t> blend_out;
 
     uint16_t convs[NUM_CLASSES] = {};
-    convs[0] = 10647;  // máximo posible
+    convs[0] = WIN_SIZE * WIN_SIZE * 63;  // 49*63=3087
     conv_in.write(make_conv_vec(convs));
 
-    uint8_t p0_cls[PPP] = {0,0,0,0};
+    uint8_t p0_cls[PPP] = {0};
     p0_in.write(make_p0_group(p0_cls));
 
     stage_scale_and_blend(conv_in, p0_in, blend_out, ALPHA, INV_K, 1, 1);
@@ -175,19 +172,21 @@ static bool test_s_saturation() {
 }
 
 // ============================================================
-// TEST 5 — Conteo exacto de vectores emitidos
+// TEST 5 — Conteo exacto de vectores emitidos (PPP=1)
 // ============================================================
 static bool test_s_output_count() {
-    const int N = 12;  // 12 píxeles = 3 grupos de PPP
+    const int N = 12;
     hls::stream<conv_vec_t>  conv_in;
     hls::stream<pgroup_t>    p0_in;
     hls::stream<blend_vec_t> blend_out;
 
     uint16_t convs[NUM_CLASSES] = {};
-    uint8_t  p0_cls[PPP] = {0,0,0,0};
+    uint8_t  p0_cls[PPP] = {0};
 
-    for (int i = 0; i < N; i++) conv_in.write(make_conv_vec(convs));
-    for (int i = 0; i < N/PPP; i++) p0_in.write(make_p0_group(p0_cls));
+    for (int i = 0; i < N; i++) {
+        conv_in.write(make_conv_vec(convs));
+        p0_in.write(make_p0_group(p0_cls));
+    }
 
     stage_scale_and_blend(conv_in, p0_in, blend_out, 10, 10, N, 1);
 
@@ -214,15 +213,11 @@ static bool test_s_golden_model() {
     for (int i = 0; i < N; i++) {
         uint16_t convs[NUM_CLASSES];
         for (int c = 0; c < NUM_CLASSES; c++)
-            convs[c] = (uint16_t)((i*37 + c*53) % 10648);
+            convs[c] = (uint16_t)((i*37 + c*53) % 3088);
         convs_vec[i] = make_conv_vec(convs);
         conv_in.write(convs_vec[i]);
         p0_vals[i] = (uint8_t)(i % NUM_CLASSES);
-    }
-
-    for (int i = 0; i < N/PPP; i++) {
-        uint8_t cls[PPP];
-        for (int p = 0; p < PPP; p++) cls[p] = p0_vals[i*PPP + p];
+        uint8_t cls[PPP] = {p0_vals[i]};
         p0_in.write(make_p0_group(cls));
     }
 
@@ -232,7 +227,7 @@ static bool test_s_golden_model() {
     for (int i = 0; i < N; i++) {
         blend_vec_t v = blend_out.read();
         for (int c = 0; c < NUM_CLASSES; c++) {
-            uint16_t cv = (uint16_t)convs_vec[i].range(c*14+13, c*14);
+            uint16_t cv = (uint16_t)convs_vec[i].range(c*12+11, c*12);
             uint8_t  expected = golden_blend(cv, p0_vals[i], c, ALPHA, INV_K);
             if (get_blend(v,c) != expected) {
                 std::cerr << "    i=" << i << " c=" << c

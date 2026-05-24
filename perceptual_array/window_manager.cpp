@@ -1,216 +1,181 @@
 #include "perceptual_array.hpp"
 
-// ============================================================
-// stage_window_manager
-//
-// Window Manager custom 13x13 para píxeles de BITS_CLASS bits.
-// PPP=4 píxeles por grupo. Emite PPP ventanas por grupo —
-// 1 ventana de WIN_SIZE×WIN_SIZE por píxel, en PPP ciclos consecutivos.
-//
-// Replicación de borde: los píxeles fuera del dominio de la
-// imagen replican el píxel del borde más cercano.
-//
-// Almacenamiento:
-//   line_buf: (WIN_SIZE-1) filas × (MAX_WIDTH/PPP) grupos × PPP píxeles
-//   Cada píxel ocupa BITS_CLASS bits.
-//
-// Desfase de salida: igual que el WindowManager genérico,
-// la ventana completa para el píxel (y,x) está disponible
-// en el ciclo (y+HALF_WIN, x/PPP + HALF_WIN/PPP + 1).
-//
-// Cadena de cachés de columna (en iter g, construyendo ventanas de grupo g-1):
-//   lb_curr      → datos del grupo g     (leído de line_buf al inicio)
-//   lb_cache_curr → grupo g-1  (fila hist: lb_curr anterior; fila actual: pixels del iter g-1)
-//   lb_cache2    → grupo g-2  (igual para el iter g-2)
-//   lb_cache3    → grupo g-3  (igual para el iter g-3)
-//
-// Limitación conocida: eff_group = g+1 (borde derecho de ventana) usa datos de
-// la fila anterior (mejor aproximación disponible sin aumentar el look-ahead).
-// ============================================================
-
-// Tipo interno para un píxel individual de la imagen
-typedef ap_uint<BITS_CLASS> px_t;
+// G_DELAY: grupos de retraso antes de emitir (ceil(HALF_WIN/PPP) = ceil(3/1) = 3)
+// SLIDE_W: columnas en el buffer deslizante = (G_DELAY+1)*PPP + HALF_WIN = 7
+// Con PPP=1, SLIDE_W = WIN_SIZE: el slide ES exactamente la ventana.
+// Invariante: tras insertar grupo g, slide[r][c] contiene el pixel en
+//   abs_col = g*1 + c - (SLIDE_W-1) = g + c - 6
+//   abs_row = y - (WIN_SIZE-1-r)
+// La ventana para pixel p del grupo g-G_DELAY usa slide[wy][p+wx].
+#define G_DELAY  3
+#define SLIDE_W  ((G_DELAY + 1) * PPP + HALF_WIN)   // = 7
 
 void stage_window_manager(
     hls::stream<pgroup_t>& pk_in,
     hls::stream<window_t>& win_out,
     int width, int height) {
 
-    static px_t line_buf[WIN_SIZE-1][MAX_WIDTH/PPP][PPP];
+    // Sintesis: static → BRAM persistente entre frames.
+    // Csim:     local  → se reinicializa en cada llamada (tests independientes).
+#ifdef __SYNTHESIS__
+    static ap_uint<BITS_CLASS> line_buf[WIN_SIZE-1][MAX_WIDTH/PPP][PPP];
+#else
+    ap_uint<BITS_CLASS> line_buf[WIN_SIZE-1][MAX_WIDTH/PPP][PPP] = {};
+#endif
     #pragma HLS ARRAY_PARTITION variable=line_buf complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=line_buf complete dim=3
+    // dim=3 tiene tamaño PPP=1 — partición innecesaria
 
-    static px_t lb_cache_curr[WIN_SIZE-1][PPP];
-    #pragma HLS ARRAY_PARTITION variable=lb_cache_curr complete
+    // Buffer deslizante: [WIN_SIZE][SLIDE_W] completamente en registros.
+    ap_uint<BITS_CLASS> slide[WIN_SIZE][SLIDE_W];
+    #pragma HLS ARRAY_PARTITION variable=slide complete
 
-    static px_t lb_cache2[WIN_SIZE-1][PPP];
-    #pragma HLS ARRAY_PARTITION variable=lb_cache2 complete
+    // Columna post-shift guardada en registros para eliminar la dependencia BRAM
+    // en la transición borde-horizontal (g=GROUPS-1 escribe line_buf, g=GROUPS lee).
+    // saved_col[r][p] = line_buf[r][g][p] después del shift (actualizado cada g válido).
+    ap_uint<BITS_CLASS> saved_col[WIN_SIZE-1][PPP];
+    #pragma HLS ARRAY_PARTITION variable=saved_col complete
 
-    static px_t lb_cache3[WIN_SIZE-1][PPP];
-    #pragma HLS ARRAY_PARTITION variable=lb_cache3 complete
-
-    const int GROUPS = width / PPP;
-
-    // Inicializar cachés (line_buf persiste entre frames intencionalmente)
     for (int r = 0; r < WIN_SIZE-1; r++) {
         #pragma HLS UNROLL
         for (int p = 0; p < PPP; p++) {
             #pragma HLS UNROLL
-            lb_cache_curr[r][p] = 0;
-            lb_cache2[r][p]     = 0;
-            lb_cache3[r][p]     = 0;
+            saved_col[r][p] = 0;
         }
     }
 
-    // Pipeline principal: height+HALF_WIN filas para drenar la ventana
+    for (int r = 0; r < WIN_SIZE; r++) {
+        #pragma HLS UNROLL
+        for (int c = 0; c < SLIDE_W; c++) {
+            #pragma HLS UNROLL
+            slide[r][c] = 0;
+        }
+    }
+
+    const int GROUPS = width / PPP;
+
     Row_Loop: for (int y = 0; y < height + HALF_WIN; y++) {
         #pragma HLS LOOP_FLATTEN off
-        #pragma HLS LOOP_TRIPCOUNT max=2160+6
+        #pragma HLS LOOP_TRIPCOUNT max=2160+3
 
-        Col_Loop: for (int g = 0; g <= GROUPS + HALF_WIN/PPP; g++) {
+        Col_Loop: for (int g = 0; g < GROUPS + G_DELAY; g++) {
             #pragma HLS PIPELINE II=1
-            #pragma HLS LOOP_TRIPCOUNT max=MAX_WIDTH/PPP+2
+            #pragma HLS LOOP_TRIPCOUNT max=MAX_WIDTH/PPP+G_DELAY
 
-            // Leer píxeles del stream — con replicación vertical
-            px_t pixels[PPP];
-            #pragma HLS ARRAY_PARTITION variable=pixels complete
+            const bool vert_border  = (y >= height);
+            const bool horiz_border = (g >= GROUPS);
 
-            if (y < height && g < GROUPS) {
+            // ── Paso 1: leer pixeles o replicar borde ──────────────────
+            ap_uint<BITS_CLASS> new_pixels[PPP];
+            #pragma HLS ARRAY_PARTITION variable=new_pixels complete
+
+            if (!vert_border && !horiz_border) {
                 pgroup_t grp = pk_in.read();
                 for (int p = 0; p < PPP; p++) {
                     #pragma HLS UNROLL
-                    pixels[p] = grp.range(p*BITS_CLASS+BITS_CLASS-1, p*BITS_CLASS);
+                    new_pixels[p] = grp.range(p*BITS_CLASS + BITS_CLASS-1, p*BITS_CLASS);
                 }
-            } else if (y >= height) {
-                // Replicación vertical inferior: repetir última fila
+            } else if (horiz_border) {
+                // Borde horizontal: usar registro saved_col (evita dependencia BRAM).
+                // saved_col[WIN_SIZE-2][PPP-1] = new_pixels del ultimo grupo valido.
                 for (int p = 0; p < PPP; p++) {
                     #pragma HLS UNROLL
-                    pixels[p] = line_buf[WIN_SIZE-2][g < GROUPS ? g : GROUPS-1][p];
+                    new_pixels[p] = saved_col[WIN_SIZE-2][PPP-1];
                 }
             } else {
-                // g >= GROUPS: replicación horizontal derecha
+                // Borde vertical (y >= height), g valido: leer line_buf normalmente.
+                // sg=g → no hay conflicto inter-iteracion (direcciones distintas).
                 for (int p = 0; p < PPP; p++) {
                     #pragma HLS UNROLL
-                    pixels[p] = line_buf[0][GROUPS-1][PPP-1];
+                    new_pixels[p] = line_buf[WIN_SIZE-2][g][p];
                 }
             }
 
-            // Leer lb_curr del grupo actual (datos históricos de columna g)
-            px_t lb_curr[WIN_SIZE-1][PPP];
-            #pragma HLS ARRAY_PARTITION variable=lb_curr complete
-            for (int r = 0; r < WIN_SIZE-1; r++) {
+            // ── Paso 2: construir columna completa (WIN_SIZE filas) ────
+            ap_uint<BITS_CLASS> new_col[PPP][WIN_SIZE];
+            #pragma HLS ARRAY_PARTITION variable=new_col complete
+
+            {
+                for (int p = 0; p < PPP; p++) {
+                    #pragma HLS UNROLL
+                    if (horiz_border) {
+                        // Usar registros saved_col (sin acceso a BRAM) para evitar
+                        // la dependencia llevada en la transicion GROUPS-1 → GROUPS.
+                        for (int r = 0; r < WIN_SIZE-1; r++) {
+                            #pragma HLS UNROLL
+                            new_col[p][r] = saved_col[r][PPP-1];
+                        }
+                    } else {
+                        for (int r = 0; r < WIN_SIZE-1; r++) {
+                            #pragma HLS UNROLL
+                            new_col[p][r] = line_buf[r][g][p];
+                        }
+                    }
+                    new_col[p][WIN_SIZE-1] = new_pixels[p];
+                }
+            }
+
+            // ── Actualizar saved_col con la columna post-shift actual ──
+            // Necesario para que las iteraciones de borde horizontal no lean BRAM.
+            // Post-shift row r = pre-shift row r+1 = new_col[p][r+1] (ya leido arriba).
+            if (!horiz_border) {
+                for (int r = 0; r < WIN_SIZE-2; r++) {
+                    #pragma HLS UNROLL
+                    for (int p = 0; p < PPP; p++) {
+                        #pragma HLS UNROLL
+                        saved_col[r][p] = new_col[p][r+1];
+                    }
+                }
+                for (int p = 0; p < PPP; p++) {
+                    #pragma HLS UNROLL
+                    saved_col[WIN_SIZE-2][p] = new_pixels[p];
+                }
+            }
+
+            // ── Paso 3: desplazar slide y insertar nueva columna ───────
+            for (int r = 0; r < WIN_SIZE; r++) {
                 #pragma HLS UNROLL
+                for (int c = 0; c < SLIDE_W - PPP; c++) {
+                    #pragma HLS UNROLL
+                    slide[r][c] = slide[r][c + PPP];
+                }
                 for (int p = 0; p < PPP; p++) {
                     #pragma HLS UNROLL
-                    lb_curr[r][p] = line_buf[r][g < GROUPS ? g : GROUPS-1][p];
+                    slide[r][SLIDE_W - PPP + p] = new_col[p][r];
                 }
             }
 
-            // Construir y emitir PPP ventanas (una por píxel del grupo)
-            // Ventana del grupo anterior (desfase de 1 grupo)
-            if (y >= HALF_WIN && g >= 1 && g <= GROUPS) {
-                int abs_col_base = (g-1) * PPP;
-                int abs_row = y - HALF_WIN;  // fila de imagen correspondiente
-
+            // ── Paso 4: emitir PPP ventanas ────────────────────────────
+            if (y >= HALF_WIN && g >= G_DELAY) {
                 for (int p = 0; p < PPP; p++) {
                     #pragma HLS UNROLL
                     window_t win = 0;
-                    int abs_col = abs_col_base + p;
-
                     for (int wy = 0; wy < WIN_SIZE; wy++) {
                         #pragma HLS UNROLL
                         for (int wx = 0; wx < WIN_SIZE; wx++) {
                             #pragma HLS UNROLL
-                            px_t val;
-                            int src_col = abs_col + wx - HALF_WIN;
-                            int src_row = abs_row + wy - HALF_WIN;
-
-                            // Replicación vertical
-                            int eff_row = src_row;
-                            if (eff_row < 0)       eff_row = 0;
-                            if (eff_row >= height)  eff_row = height-1;
-
-                            // Replicación horizontal
-                            int eff_col = src_col;
-                            if (eff_col < 0)      eff_col = 0;
-                            if (eff_col >= width)  eff_col = width-1;
-
-                            int rel_row = eff_row - abs_row + HALF_WIN;
-                            // rel_row: 0=top de ventana, WIN_SIZE-1=bottom (fila actual)
-
-                            int rel_col_in_group = eff_col % PPP;
-                            int eff_group = eff_col / PPP;
-                            // group_diff: desplazamiento respecto al grupo central (g-1)
-                            int group_diff = eff_group - (g - 1);
-
-                            if (rel_row == WIN_SIZE-1) {
-                                // Fila actual (row y):
-                                //   lb_cache_curr[WIN_SIZE-2] = pixels del iter g-1 ✓
-                                //   lb_cache2[WIN_SIZE-2]     = pixels del iter g-2 ✓
-                                //   lb_cache3[WIN_SIZE-2]     = pixels del iter g-3 ✓
-                                //   pixels[]                  = grupo g actual       ✓
-                                //   lb_curr[WIN_SIZE-2]       = fila anterior (aprox. para g+1)
-                                if (group_diff <= -2) {
-                                    val = lb_cache3[WIN_SIZE-2][rel_col_in_group];
-                                } else if (group_diff == -1) {
-                                    val = lb_cache2[WIN_SIZE-2][rel_col_in_group];
-                                } else if (group_diff == 0) {
-                                    val = lb_cache_curr[WIN_SIZE-2][rel_col_in_group];
-                                } else {
-                                    // group_diff == 1 (grupo g): correcto
-                                    // group_diff >= 2 (grupo g+1): approx. con pixels[g]
-                                    val = pixels[rel_col_in_group];
-                                }
-                            } else {
-                                // Filas históricas: cachés contienen los datos correctos
-                                int buf_row = rel_row;
-                                if (group_diff <= -2) {
-                                    val = lb_cache3[buf_row][rel_col_in_group];
-                                } else if (group_diff == -1) {
-                                    val = lb_cache2[buf_row][rel_col_in_group];
-                                } else if (group_diff == 0) {
-                                    val = lb_cache_curr[buf_row][rel_col_in_group];
-                                } else {
-                                    // group_diff == 1 (grupo g): correcto
-                                    // group_diff >= 2 (grupo g+1): approx. con lb_curr[g]
-                                    val = lb_curr[buf_row][rel_col_in_group];
-                                }
-                            }
-
                             int bit_idx = (wy * WIN_SIZE + wx) * BITS_CLASS;
-                            win.range(bit_idx + BITS_CLASS-1, bit_idx) = val;
+                            win.range(bit_idx + BITS_CLASS-1, bit_idx) = slide[wy][p + wx];
                         }
                     }
                     win_out.write(win);
                 }
             }
 
-            // Actualizar cadena de cachés DESPUÉS de emitir las ventanas.
-            // Para la fila actual (r == WIN_SIZE-2) se captura pixels[] en lugar
-            // de lb_curr[WIN_SIZE-2] (que aún tiene la fila anterior), de modo que
-            // lb_cache_curr[WIN_SIZE-2] en el siguiente ciclo = fila actual del grupo g.
-            for (int r = 0; r < WIN_SIZE-1; r++) {
-                #pragma HLS UNROLL
+            // ── Paso 5: actualizar line_buf ────────────────────────────
+            // Se actualiza para todos los grupos validos, incluyendo y >= height
+            // (con new_pixels ya cargado con replicacion de borde inferior).
+            if (!horiz_border) {
+                for (int r = 0; r < WIN_SIZE-2; r++) {
+                    #pragma HLS UNROLL
+                    for (int p = 0; p < PPP; p++) {
+                        #pragma HLS UNROLL
+                        line_buf[r][g][p] = line_buf[r+1][g][p];
+                    }
+                }
                 for (int p = 0; p < PPP; p++) {
                     #pragma HLS UNROLL
-                    lb_cache3[r][p] = lb_cache2[r][p];
-                    lb_cache2[r][p] = lb_cache_curr[r][p];
-                    lb_cache_curr[r][p] = (r == WIN_SIZE-2) ? pixels[p] : lb_curr[r][p];
+                    line_buf[WIN_SIZE-2][g][p] = new_pixels[p];
                 }
-            }
-
-            // Actualizar line buffer
-            for (int r = 0; r < WIN_SIZE-2; r++) {
-                #pragma HLS UNROLL
-                for (int p = 0; p < PPP; p++) {
-                    #pragma HLS UNROLL
-                    line_buf[r][g < GROUPS ? g : GROUPS-1][p] =
-                        line_buf[r+1][g < GROUPS ? g : GROUPS-1][p];
-                }
-            }
-            for (int p = 0; p < PPP; p++) {
-                #pragma HLS UNROLL
-                line_buf[WIN_SIZE-2][g < GROUPS ? g : GROUPS-1][p] = pixels[p];
             }
         }
     }

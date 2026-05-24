@@ -46,7 +46,7 @@ static window_t make_random_window(int seed) {
 
 // Extrae un valor de conv_vec_t para la clase c
 static uint16_t get_conv(conv_vec_t v, int c) {
-    return (uint16_t)v.range(c*14+13, c*14);
+    return (uint16_t)v.range(c*12+11, c*12);
 }
 
 // Golden model del conv_engine
@@ -157,7 +157,7 @@ static bool test_c_identity_kernel() {
 
 // ============================================================
 // TEST 4 — Valor máximo acumulador sin overflow
-// 169 píxeles todos clase 0, kernel todos = 63 → conv[0] = 10647
+// 49 píxeles todos clase 0, kernel todos = 63 → conv[0] = 3087
 // ============================================================
 static bool test_c_max_accumulator() {
     uint8_t gauss[WIN_SIZE][WIN_SIZE];
@@ -171,7 +171,7 @@ static bool test_c_max_accumulator() {
     stage_conv_engine(in, out, gauss, 1, 1);
 
     conv_vec_t v = out.read();
-    uint16_t expected = WIN_SIZE * WIN_SIZE * 63;  // 169 * 63 = 10647
+    uint16_t expected = WIN_SIZE * WIN_SIZE * 63;  // 49 * 63 = 3087
     bool ok = (get_conv(v, 0) == expected);
     if (!ok)
         std::cerr << "    conv[0]=" << get_conv(v,0)

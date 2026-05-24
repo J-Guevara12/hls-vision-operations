@@ -2,15 +2,16 @@
 // Testbench: test_unpack.cpp
 // Componente bajo prueba: stage_unpack
 //
-// Invariantes:
-//   - Conteo exacto de grupos emitidos en los 4 streams
-//   - P0 extraído correctamente de bits [7:4] de cada byte
-//   - Pk extraído correctamente de bits [3:0] de cada byte
-//   - Orden de empaquetado: píxel p en bits [p*4+3:p*4]
+// Invariantes (PPP=1: 1 píxel por paquete axis_t):
+//   - Conteo exacto de grupos emitidos en los 4 streams (W×H)
+//   - P0 extraído correctamente de bits [7:4] del byte [7:0]
+//   - Pk extraído correctamente de bits [3:0] del byte [7:0]
 //   - Los 4 streams emiten el mismo número de palabras
 //   - p0_blend y p0_pack son idénticos
 //   - pk_wm y pk_argmax son idénticos
+//   - P0 y Pk no se contaminan entre sí
 //   - Valores extremos 0x00 y 0xFF
+//   - TLAST no afecta el procesamiento
 // ============================================================
 
 #include <iostream>
@@ -26,24 +27,19 @@ static void report_u(const std::string& name, bool ok) {
     else     { tests_failed_u++; std::cerr << "  [FAIL] " << name << "\n"; }
 }
 
-// Construye un paquete axis_t con 4 píxeles
-static axis_t make_pkt(uint8_t p0[PPP], uint8_t pk[PPP], bool last = false) {
+// PPP=1: 1 byte per pkt at bits[7:0]; bits[7:4]=P0, bits[3:0]=PK
+static axis_t make_pkt(uint8_t p0, uint8_t pk, bool last = false) {
     axis_t pkt;
     pkt.data = 0;
-    for (int p = 0; p < PPP; p++) {
-        #pragma HLS UNROLL
-        ap_uint<8> byte = ((ap_uint<8>)(p0[p] & 0xF) << 4) |
-                           (ap_uint<8>)(pk[p] & 0xF);
-        pkt.data.range(p*8+7, p*8) = byte;
-    }
+    pkt.data.range(7, 0) = ((ap_uint<8>)(p0 & 0xF) << 4) | (ap_uint<8>)(pk & 0xF);
     pkt.keep = 0xF; pkt.strb = 0xF;
     pkt.last = last ? 1 : 0;
     return pkt;
 }
 
-// Extrae el píxel p del pgroup_t
-static uint8_t get_px(pgroup_t g, int p) {
-    return (uint8_t)g.range(p*BITS_CLASS+BITS_CLASS-1, p*BITS_CLASS);
+// PPP=1: pgroup_t is 4 bits holding exactly 1 class value
+static uint8_t get_px(pgroup_t g) {
+    return (uint8_t)g.range(BITS_CLASS-1, 0);
 }
 
 static void run_unpack(hls::stream<axis_t>& in,
@@ -58,13 +54,12 @@ static void run_unpack(hls::stream<axis_t>& in,
 // ============================================================
 static bool test_u_count() {
     const int W = 8, H = 4;
-    const int EXP = (W/PPP) * H;
+    const int EXP = W * H;
 
     hls::stream<axis_t>   in;
     hls::stream<pgroup_t> p0b, p0p, pkw, pka;
 
-    uint8_t p0[PPP] = {1,2,3,4}, pk[PPP] = {5,6,7,8};
-    for (int i = 0; i < EXP; i++) in.write(make_pkt(p0, pk));
+    for (int i = 0; i < EXP; i++) in.write(make_pkt(1, 5));
 
     run_unpack(in, p0b, p0p, pkw, pka, W, H);
 
@@ -86,25 +81,25 @@ static bool test_u_count() {
 // ============================================================
 static bool test_u_p0_extraction() {
     const int W = 4, H = 2;
+    const int N = W * H;
     hls::stream<axis_t>   in;
     hls::stream<pgroup_t> p0b, p0p, pkw, pka;
 
-    // P0 = {0,1,2,3}, Pk = {4,5,6,7}
-    uint8_t p0v[PPP] = {0,1,2,3}, pkv[PPP] = {4,5,6,7};
-    for (int i = 0; i < (W/PPP)*H; i++) in.write(make_pkt(p0v, pkv));
+    std::vector<uint8_t> p0_ref(N);
+    for (int i = 0; i < N; i++) {
+        p0_ref[i] = (uint8_t)(i % NUM_CLASSES);
+        in.write(make_pkt(p0_ref[i], (15 - p0_ref[i]) & 0xF));
+    }
 
     run_unpack(in, p0b, p0p, pkw, pka, W, H);
 
     bool ok = true;
-    while (!p0b.empty()) {
-        pgroup_t g = p0b.read();
-        for (int p = 0; p < PPP; p++) {
-            uint8_t got = get_px(g, p);
-            if (got != p0v[p]) {
-                std::cerr << "    P0[" << p << "]=" << (int)got
-                          << " esperado=" << (int)p0v[p] << "\n";
-                ok = false;
-            }
+    for (int i = 0; i < N; i++) {
+        uint8_t got = get_px(p0b.read());
+        if (got != p0_ref[i]) {
+            std::cerr << "    P0[" << i << "]=" << (int)got
+                      << " esperado=" << (int)p0_ref[i] << "\n";
+            ok = false;
         }
     }
     while (!p0p.empty()) p0p.read();
@@ -118,24 +113,25 @@ static bool test_u_p0_extraction() {
 // ============================================================
 static bool test_u_pk_extraction() {
     const int W = 4, H = 2;
+    const int N = W * H;
     hls::stream<axis_t>   in;
     hls::stream<pgroup_t> p0b, p0p, pkw, pka;
 
-    uint8_t p0v[PPP] = {15,14,13,12}, pkv[PPP] = {0,1,2,3};
-    for (int i = 0; i < (W/PPP)*H; i++) in.write(make_pkt(p0v, pkv));
+    std::vector<uint8_t> pk_ref(N);
+    for (int i = 0; i < N; i++) {
+        pk_ref[i] = (uint8_t)(i % NUM_CLASSES);
+        in.write(make_pkt((15 - pk_ref[i]) & 0xF, pk_ref[i]));
+    }
 
     run_unpack(in, p0b, p0p, pkw, pka, W, H);
 
     bool ok = true;
-    while (!pkw.empty()) {
-        pgroup_t g = pkw.read();
-        for (int p = 0; p < PPP; p++) {
-            uint8_t got = get_px(g, p);
-            if (got != pkv[p]) {
-                std::cerr << "    Pk[" << p << "]=" << (int)got
-                          << " esperado=" << (int)pkv[p] << "\n";
-                ok = false;
-            }
+    for (int i = 0; i < N; i++) {
+        uint8_t got = get_px(pkw.read());
+        if (got != pk_ref[i]) {
+            std::cerr << "    Pk[" << i << "]=" << (int)got
+                      << " esperado=" << (int)pk_ref[i] << "\n";
+            ok = false;
         }
     }
     while (!p0b.empty()) p0b.read();
@@ -149,24 +145,22 @@ static bool test_u_pk_extraction() {
 // ============================================================
 static bool test_u_p0_identical() {
     const int W = 8, H = 4;
+    const int N = W * H;
     hls::stream<axis_t>   in;
     hls::stream<pgroup_t> p0b, p0p, pkw, pka;
 
-    for (int i = 0; i < (W/PPP)*H; i++) {
-        uint8_t p0v[PPP] = {(uint8_t)(i%16),(uint8_t)((i+1)%16),
-                             (uint8_t)((i+2)%16),(uint8_t)((i+3)%16)};
-        uint8_t pkv[PPP] = {0,0,0,0};
-        in.write(make_pkt(p0v, pkv));
-    }
+    for (int i = 0; i < N; i++)
+        in.write(make_pkt((uint8_t)(i % NUM_CLASSES), 0));
 
     run_unpack(in, p0b, p0p, pkw, pka, W, H);
 
     bool ok = true;
-    while (!p0b.empty() && !p0p.empty()) {
-        pgroup_t gb = p0b.read();
-        pgroup_t gp = p0p.read();
+    for (int i = 0; i < N; i++) {
+        uint8_t gb = get_px(p0b.read());
+        uint8_t gp = get_px(p0p.read());
         if (gb != gp) {
-            std::cerr << "    p0_blend != p0_pack\n";
+            std::cerr << "    [" << i << "] p0_blend=" << (int)gb
+                      << " != p0_pack=" << (int)gp << "\n";
             ok = false;
         }
     }
@@ -180,24 +174,22 @@ static bool test_u_p0_identical() {
 // ============================================================
 static bool test_u_pk_identical() {
     const int W = 8, H = 4;
+    const int N = W * H;
     hls::stream<axis_t>   in;
     hls::stream<pgroup_t> p0b, p0p, pkw, pka;
 
-    for (int i = 0; i < (W/PPP)*H; i++) {
-        uint8_t p0v[PPP] = {0,0,0,0};
-        uint8_t pkv[PPP] = {(uint8_t)(i%16),(uint8_t)((i+1)%16),
-                             (uint8_t)((i+2)%16),(uint8_t)((i+3)%16)};
-        in.write(make_pkt(p0v, pkv));
-    }
+    for (int i = 0; i < N; i++)
+        in.write(make_pkt(0, (uint8_t)(i % NUM_CLASSES)));
 
     run_unpack(in, p0b, p0p, pkw, pka, W, H);
 
     bool ok = true;
-    while (!pkw.empty() && !pka.empty()) {
-        pgroup_t gw = pkw.read();
-        pgroup_t ga = pka.read();
+    for (int i = 0; i < N; i++) {
+        uint8_t gw = get_px(pkw.read());
+        uint8_t ga = get_px(pka.read());
         if (gw != ga) {
-            std::cerr << "    pk_wm != pk_argmax\n";
+            std::cerr << "    [" << i << "] pk_wm=" << (int)gw
+                      << " != pk_argmax=" << (int)ga << "\n";
             ok = false;
         }
     }
@@ -211,28 +203,25 @@ static bool test_u_pk_identical() {
 // ============================================================
 static bool test_u_no_crosscontamination() {
     const int W = 4, H = 1;
+    const int N = W * H;
     hls::stream<axis_t>   in;
     hls::stream<pgroup_t> p0b, p0p, pkw, pka;
 
-    // P0 = 0xA (10), Pk = 0x5 (5) — valores distintos fácil de distinguir
-    uint8_t p0v[PPP] = {10,10,10,10}, pkv[PPP] = {5,5,5,5};
-    in.write(make_pkt(p0v, pkv));
+    for (int i = 0; i < N; i++)
+        in.write(make_pkt(10, 5));  // P0=0xA, Pk=0x5
 
     run_unpack(in, p0b, p0p, pkw, pka, W, H);
 
     bool ok = true;
-    pgroup_t gp0 = p0b.read();
-    pgroup_t gpk = pkw.read();
-
-    for (int p = 0; p < PPP; p++) {
-        if (get_px(gp0, p) != 10) {
-            std::cerr << "    P0[" << p << "]=" << (int)get_px(gp0,p)
-                      << " esperado=10\n";
+    for (int i = 0; i < N; i++) {
+        uint8_t vp0 = get_px(p0b.read());
+        uint8_t vpk = get_px(pkw.read());
+        if (vp0 != 10) {
+            std::cerr << "    [" << i << "] P0=" << (int)vp0 << " esperado=10\n";
             ok = false;
         }
-        if (get_px(gpk, p) != 5) {
-            std::cerr << "    Pk[" << p << "]=" << (int)get_px(gpk,p)
-                      << " esperado=5\n";
+        if (vpk != 5) {
+            std::cerr << "    [" << i << "] Pk=" << (int)vpk << " esperado=5\n";
             ok = false;
         }
     }
@@ -245,35 +234,27 @@ static bool test_u_no_crosscontamination() {
 // TEST 7 — Valores extremos 0x00 y 0xFF
 // ============================================================
 static bool test_u_extreme_values() {
-    const int W = 4, H = 1;
+    const int W = 2, H = 1;
     hls::stream<axis_t>   in;
     hls::stream<pgroup_t> p0b, p0p, pkw, pka;
 
-    // Byte 0x00: P0=0, Pk=0. Byte 0xFF: P0=15, Pk=15
-    axis_t pkt;
-    pkt.data.range(7,  0)  = 0x00;
-    pkt.data.range(15, 8)  = 0xFF;
-    pkt.data.range(23, 16) = 0x00;
-    pkt.data.range(31, 24) = 0xFF;
-    pkt.keep = 0xF; pkt.strb = 0xF; pkt.last = 1;
-    in.write(pkt);
+    in.write(make_pkt(0, 0));         // byte=0x00: P0=0, Pk=0
+    in.write(make_pkt(15, 15, true)); // byte=0xFF: P0=15, Pk=15
 
     run_unpack(in, p0b, p0p, pkw, pka, W, H);
 
     bool ok = true;
-    pgroup_t gp0 = p0b.read();
-    pgroup_t gpk = pkw.read();
+    uint8_t p0_0 = get_px(p0b.read()), p0_f = get_px(p0b.read());
+    uint8_t pk_0 = get_px(pkw.read()), pk_f = get_px(pkw.read());
 
-    // Píxel 0: P0=0, Pk=0
-    if (get_px(gp0,0) != 0 || get_px(gpk,0) != 0) {
-        std::cerr << "    Píxel 0: P0=" << (int)get_px(gp0,0)
-                  << " Pk=" << (int)get_px(gpk,0) << " esperado 0,0\n";
+    if (p0_0 != 0 || pk_0 != 0) {
+        std::cerr << "    Pkt 0x00: P0=" << (int)p0_0
+                  << " Pk=" << (int)pk_0 << " esperado 0,0\n";
         ok = false;
     }
-    // Píxel 1: P0=15, Pk=15
-    if (get_px(gp0,1) != 15 || get_px(gpk,1) != 15) {
-        std::cerr << "    Píxel 1: P0=" << (int)get_px(gp0,1)
-                  << " Pk=" << (int)get_px(gpk,1) << " esperado 15,15\n";
+    if (p0_f != 15 || pk_f != 15) {
+        std::cerr << "    Pkt 0xFF: P0=" << (int)p0_f
+                  << " Pk=" << (int)pk_f << " esperado 15,15\n";
         ok = false;
     }
     while (!p0p.empty()) p0p.read();
@@ -286,23 +267,20 @@ static bool test_u_extreme_values() {
 // ============================================================
 static bool test_u_last_ignored() {
     const int W = 8, H = 2;
-    const int GROUPS = (W/PPP)*H;
+    const int N = W * H;
     hls::stream<axis_t>   in;
     hls::stream<pgroup_t> p0b, p0p, pkw, pka;
 
-    uint8_t p0v[PPP] = {1,2,3,4}, pkv[PPP] = {5,6,7,8};
-    for (int i = 0; i < GROUPS; i++) {
-        bool last = (i == GROUPS-1);
-        in.write(make_pkt(p0v, pkv, last));
+    for (int i = 0; i < N; i++) {
+        bool last = (i == N-1);
+        in.write(make_pkt(1, 5, last));
     }
 
     run_unpack(in, p0b, p0p, pkw, pka, W, H);
 
-    // Todos los grupos deben haberse procesado independientemente del LAST
-    bool ok = ((int)p0b.size() == GROUPS);
+    bool ok = ((int)p0b.size() == N);
     if (!ok)
-        std::cerr << "    Grupos recibidos=" << p0b.size()
-                  << " esperado=" << GROUPS << "\n";
+        std::cerr << "    recibidos=" << p0b.size() << " esperado=" << N << "\n";
     while (!p0b.empty()) p0b.read();
     while (!p0p.empty()) p0p.read();
     while (!pkw.empty()) pkw.read();

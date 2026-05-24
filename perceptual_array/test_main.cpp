@@ -7,15 +7,17 @@
 //
 // Orden de ejecución:
 //   1. stage_unpack          (desempaquetado de entrada)
-//   2. stage_conv_engine     (convolución gaussiana)
-//   3. stage_scale_and_blend (mezcla α)
-//   4. stage_argmax_and_count(argmax + conteo de cambios)
-//   5. stage_pack            (empaquetado de salida)
-//   6. perceptual_array      (integración end-to-end)
+//   2. stage_window_manager  (ventana deslizante 7x7)
+//   3. stage_conv_engine     (convolución gaussiana)
+//   4. stage_scale_and_blend (mezcla α)
+//   5. stage_argmax_and_count(argmax + conteo de cambios)
+//   6. stage_pack            (empaquetado de salida)
+//   7. perceptual_array      (integración end-to-end)
 // ============================================================
 
 #include "perceptual_array.hpp"
 #include "test_unpack.cpp"
+#include "test_window_manager.cpp"
 #include "test_conv_engine.cpp"
 #include "test_scale_and_blend.cpp"
 #include "test_max_and_count.cpp"
@@ -24,6 +26,7 @@
 
 // Declaraciones (definidas en cada test_*.cpp)
 int main_unpack();
+int main_window_manager();
 int main_conv_engine();
 int main_scale_and_blend();
 int main_argmax_and_count();
@@ -38,6 +41,7 @@ struct Suite {
 int main() {
     static const Suite suites[] = {
         { "stage_unpack",           main_unpack           },
+        { "stage_window_manager",   main_window_manager   },
         { "stage_conv_engine",      main_conv_engine      },
         { "stage_scale_and_blend",  main_scale_and_blend  },
         { "stage_argmax_and_count", main_argmax_and_count },
